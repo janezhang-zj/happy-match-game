@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, minimum-scale=0.3, maximum-scale=3.0, viewport-fit=cover">
 <title>开心消消乐</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
@@ -910,15 +910,26 @@ function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
 let currentCellSize = 54;
 
 function calcCellSize() {
-  // Use visualViewport on mobile for accurate dimensions
-  const vw = window.visualViewport ? window.visualViewport.width : window.innerWidth;
-  const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-  // Board takes 8 cells + gaps(~7*0.07*cell) + padding(~2*0.11*cell) ≈ 8.78 cells wide
-  // Reserve 16px total horizontal margin
-  const byWidth = Math.floor((vw - 16) / 8.78);
-  // Reserve 120px for HUD, progress bar, buttons, margins above/below the board
-  const byHeight = Math.floor((vh - 120) / 8.78);
-  return Math.max(26, Math.min(54, byWidth, byHeight));
+  // Get real viewport width - try multiple methods for cross-browser compat
+  let vw = window.innerWidth;
+  // On mobile, use screen width as fallback (more reliable than innerWidth on some browsers)
+  if (vw > screen.width && screen.width > 0) vw = screen.width;
+  // Also try document body width
+  const bodyW = document.body.clientWidth;
+  if (bodyW > 0 && bodyW < vw) vw = bodyW;
+  // Use the smallest of these to ensure fit
+  const availW = Math.min(vw, screen.width || vw, document.documentElement.clientWidth);
+
+  // Board needs: 8 cells + 7 gaps(0.07*cell) + 2 paddings(0.11*cell) = 8.78 cells
+  // Reserve 20px total for body padding and borders
+  let byWidth = Math.floor((availW - 20) / 8.78);
+
+  // Also check height constraint
+  const vh = window.innerHeight || screen.height;
+  // Board height + HUD + progress + buttons ≈ 8.78 cells + ~160px
+  let byHeight = Math.floor((vh - 160) / 8.78);
+
+  return Math.max(24, Math.min(54, byWidth, byHeight));
 }
 
 function applyCellSize(cs) {
@@ -934,20 +945,39 @@ function resizeGame() {
   const newSize = calcCellSize();
   if (newSize !== currentCellSize) {
     applyCellSize(newSize);
-    // Re-render board if game is visible and not animating
     if (document.getElementById('game').classList.contains('active') && !animating) {
       render();
     }
   }
 }
 
+// Multiple event listeners for different mobile browsers
 window.addEventListener('resize', resizeGame);
+window.addEventListener('orientationchange', ()=>{ setTimeout(resizeGame, 400); });
+// Also listen for DOM changes that might indicate viewport change
 if (window.visualViewport) {
   window.visualViewport.addEventListener('resize', resizeGame);
-  window.visualViewport.addEventListener('scroll', resizeGame);
 }
-window.addEventListener('orientationchange', ()=>{ setTimeout(resizeGame, 300); });
+// Fallback: periodic check on mobile
+const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+if (isMobile) {
+  setInterval(() => {
+    const newSize = calcCellSize();
+    if (newSize !== currentCellSize) {
+      applyCellSize(newSize);
+      if (document.getElementById('game').classList.contains('active') && !animating) {
+        render();
+      }
+    }
+  }, 1000);
+}
+
 applyCellSize(calcCellSize());
+// On mobile, viewport may not be ready yet – recalculate after a short delay
+if (isMobile) {
+  setTimeout(()=>{ applyCellSize(calcCellSize()); }, 100);
+  setTimeout(()=>{ applyCellSize(calcCellSize()); }, 500);
+}
 
 // ============ 启动 ============
 initStars();
