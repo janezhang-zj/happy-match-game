@@ -907,24 +907,47 @@ function randInt(n) { return Math.floor(Math.random()*n); }
 function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
 
 // ============ 自适应缩放 ============
+let currentCellSize = 54;
+
+function calcCellSize() {
+  // Use visualViewport on mobile for accurate dimensions
+  const vw = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+  const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+  // Board takes 8 cells + gaps(~7*0.07*cell) + padding(~2*0.11*cell) ≈ 8.78 cells wide
+  // Reserve 16px total horizontal margin
+  const byWidth = Math.floor((vw - 16) / 8.78);
+  // Reserve 120px for HUD, progress bar, buttons, margins above/below the board
+  const byHeight = Math.floor((vh - 120) / 8.78);
+  return Math.max(26, Math.min(54, byWidth, byHeight));
+}
+
+function applyCellSize(cs) {
+  currentCellSize = cs;
+  document.documentElement.style.setProperty('--cell-size', cs + 'px');
+}
+
 function getCellSize() {
-  return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-size'));
+  return currentCellSize;
 }
 
 function resizeGame() {
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  // 8 cells wide + gaps + padding + margins. Reserve ~32px for browser chrome
-  const maxByWidth = Math.floor((vw - 32) / (8 * 1.07 + 0.22));
-  // 8 cells tall + HUD(~2.5x cell) + progress(~0.5x) + buttons(~2x) + gaps(~2x)
-  const maxByHeight = Math.floor((vh - 20) / (8 * 1.07 + 0.22 + 2.5 + 0.5 + 2 + 2));
-  const cellSize = Math.max(28, Math.min(54, maxByWidth, maxByHeight));
-  document.documentElement.style.setProperty('--cell-size', cellSize + 'px');
+  const newSize = calcCellSize();
+  if (newSize !== currentCellSize) {
+    applyCellSize(newSize);
+    // Re-render board if game is visible and not animating
+    if (document.getElementById('game').classList.contains('active') && !animating) {
+      render();
+    }
+  }
 }
 
 window.addEventListener('resize', resizeGame);
-window.addEventListener('orientationchange', ()=>{ setTimeout(resizeGame, 200); });
-resizeGame();
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', resizeGame);
+  window.visualViewport.addEventListener('scroll', resizeGame);
+}
+window.addEventListener('orientationchange', ()=>{ setTimeout(resizeGame, 300); });
+applyCellSize(calcCellSize());
 
 // ============ 启动 ============
 initStars();
