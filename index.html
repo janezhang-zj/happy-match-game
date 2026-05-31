@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>开心消消乐</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family:'Segoe UI','Microsoft YaHei',sans-serif;
+  background:linear-gradient(180deg, #1a0533 0%, #2d1055 30%, #4a1a7a 60%, #1a0533 100%);
+  min-height:100vh; display:flex; justify-content:center; align-items:center;
+  overflow-x:hidden; overflow-y:auto;
+}
+body::before {
+  content:''; position:fixed; inset:0; z-index:0; pointer-events:none;
+  background:radial-gradient(ellipse at 20% 20%, rgba(255,200,100,.08) 0%, transparent 60%),
+             radial-gradient(ellipse at 80% 70%, rgba(200,150,255,.06) 0%, transparent 60%),
+             radial-gradient(ellipse at 50% 50%, rgba(255,150,200,.04) 0%, transparent 70%);
+}
+
+/* 飘落星星背景 */
+.stars-bg { position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden; }
+.stars-bg .star {
+  position:absolute; width:2px; height:2px; background:#fff; border-radius:50%;
+  animation:twinkle 3s infinite alternate;
+}
+@keyframes twinkle { 0%{opacity:.3} 100%{opacity:1} }
+
+/* ===== 主菜单 ===== */
+.screen { display:none; flex-direction:column; align-items:center; position:relative; z-index:1; }
+.screen.active { display:flex; }
+
+#menu { gap:28px; padding:40px 20px; }
+#menu h1 {
+  font-size:52px; color:#fff; text-shadow:0 0 30px rgba(255,200,80,.5), 0 4px 8px rgba(0,0,0,.5);
+  letter-spacing:6px; font-weight:900;
+  background:linear-gradient(180deg, #ffe082, #ffb74d);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+}
+#menu .subtitle { color:#c9a8e8; font-size:15px; letter-spacing:2px; }
+
+.level-grid { display:flex; gap:20px; flex-wrap:wrap; justify-content:center; margin-top:10px; }
+.level-card {
+  width:150px; height:200px; border-radius:20px; cursor:pointer;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
+  background:linear-gradient(160deg, rgba(255,255,255,.12), rgba(255,255,255,.04));
+  border:2px solid rgba(255,255,255,.15);
+  transition:transform .25s, box-shadow .25s, border-color .25s;
+  position:relative; overflow:hidden;
+  backdrop-filter:blur(8px);
+}
+.level-card::after {
+  content:''; position:absolute; inset:0; border-radius:18px;
+  background:radial-gradient(circle at 50% 0%, rgba(255,255,255,.1), transparent 70%);
+  pointer-events:none;
+}
+.level-card:hover { transform:translateY(-8px) scale(1.05); border-color:rgba(255,200,80,.6); box-shadow:0 16px 40px rgba(0,0,0,.4), 0 0 30px rgba(255,180,60,.2); }
+.level-card.locked { opacity:.35; pointer-events:none; filter:grayscale(.7); }
+.level-card.locked::before { content:'🔒'; position:absolute; font-size:32px; z-index:2; }
+.level-card .num {
+  font-size:56px; font-weight:900;
+  background:linear-gradient(180deg, #fff, #ccc);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+  line-height:1;
+}
+.level-card .stars { font-size:22px; letter-spacing:2px; }
+.level-card .info { font-size:12px; color:rgba(255,255,255,.7); text-align:center; line-height:1.8; }
+
+/* ===== 游戏画面 ===== */
+#game { gap:10px; padding:10px 0; }
+.hud {
+  display:flex; gap:16px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.15);
+  padding:10px 24px; border-radius:40px; backdrop-filter:blur(10px);
+}
+.hud-item { display:flex; flex-direction:column; align-items:center; min-width:70px; }
+.hud-item .label { font-size:11px; color:rgba(255,255,255,.6); letter-spacing:1px; }
+.hud-item .value { font-size:22px; font-weight:700; color:#fff; }
+
+.progress-wrap { position:relative; width:370px; }
+.progress-bar {
+  width:100%; height:20px; background:rgba(0,0,0,.35); border-radius:12px;
+  overflow:hidden; border:2px solid rgba(255,255,255,.15);
+}
+.progress-bar .fill {
+  height:100%; border-radius:10px; transition:width .5s ease;
+  background:linear-gradient(90deg, #f9a825, #ffd54f, #ffecb3);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.3);
+}
+.progress-target {
+  position:absolute; top:50%; transform:translate(-50%,-50%);
+  font-size:10px; color:#ffd54f; font-weight:700; pointer-events:none;
+  text-shadow:0 0 6px rgba(0,0,0,.6);
+}
+
+.board-wrapper {
+  position:relative; background:rgba(0,0,0,.25); border-radius:16px;
+  padding:6px; border:2px solid rgba(255,255,255,.1);
+  box-shadow:0 8px 32px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.05);
+}
+.board {
+  display:grid; gap:4px;
+}
+
+/* ===== 棋子 ===== */
+.piece {
+  width:54px; height:54px; border-radius:12px; cursor:pointer;
+  position:relative; transition:transform .12s;
+  overflow:hidden; background:#fff;
+  box-shadow:0 2px 6px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.4);
+}
+.piece:hover { transform:scale(1.1); z-index:2; }
+.piece:active { transform:scale(.92); }
+.piece img { width:100%; height:100%; object-fit:cover; display:block; }
+.piece.selected {
+  animation:sel-pulse .5s infinite; z-index:3;
+  box-shadow:0 0 0 3px #ffd54f, 0 0 20px rgba(255,200,50,.7), 0 4px 12px rgba(0,0,0,.4);
+}
+@keyframes sel-pulse {
+  0%,100% { transform:scale(1.05); }
+  50% { transform:scale(1.13); }
+}
+.piece.pop {
+  animation:piece-pop .4s forwards;
+}
+@keyframes piece-pop {
+  0% { transform:scale(1); opacity:1; }
+  40% { transform:scale(1.3); opacity:.7; }
+  100% { transform:scale(0); opacity:0; }
+}
+.piece.hint-anim {
+  animation:hint-bounce .8s infinite;
+}
+@keyframes hint-bounce {
+  0%,100% { transform:translateY(0); box-shadow:0 2px 6px rgba(0,0,0,.3), 0 0 8px rgba(255,255,0,.4); }
+  50% { transform:translateY(-6px); box-shadow:0 8px 16px rgba(0,0,0,.4), 0 0 20px rgba(255,255,0,.8); }
+}
+.piece.new-piece {
+  animation:drop-in .3s ease-out;
+}
+@keyframes drop-in { from { transform:translateY(-60px); opacity:.5; } to { transform:translateY(0); opacity:1; } }
+
+/* ===== 按钮 ===== */
+.btn {
+  padding:10px 28px; border:none; border-radius:25px; font-size:14px;
+  font-weight:600; cursor:pointer; transition:transform .15s, box-shadow .15s;
+  letter-spacing:1px; position:relative; z-index:1;
+}
+.btn:hover { transform:scale(1.06); }
+.btn:active { transform:scale(.96); }
+.btn-gold {
+  background:linear-gradient(135deg, #f9a825, #ffd54f); color:#4e2b00;
+  box-shadow:0 4px 12px rgba(255,180,30,.3);
+}
+.btn-ghost {
+  background:rgba(255,255,255,.1); color:#fff; border:1px solid rgba(255,255,255,.25);
+}
+.game-btns { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+
+/* ===== 弹窗 ===== */
+.overlay {
+  display:none; position:fixed; inset:0; background:rgba(0,0,0,.6);
+  justify-content:center; align-items:center; z-index:100; backdrop-filter:blur(6px);
+}
+.overlay.active { display:flex; }
+.modal {
+  background:linear-gradient(160deg, #2d1055, #1a0533); border-radius:24px;
+  padding:40px 36px; text-align:center; min-width:320px;
+  box-shadow:0 20px 60px rgba(0,0,0,.6), 0 0 40px rgba(100,50,180,.2);
+  border:2px solid rgba(255,255,255,.12);
+  animation:modal-in .4s ease;
+}
+@keyframes modal-in { from{transform:scale(.7);opacity:0} to{transform:scale(1);opacity:1} }
+.modal h2 { font-size:30px; margin-bottom:6px; color:#fff; }
+.modal .stars-big { font-size:44px; margin:12px 0; letter-spacing:4px; }
+.modal p { color:rgba(255,255,255,.7); margin-bottom:20px; font-size:15px; }
+.modal .btns { display:flex; gap:12px; justify-content:center; }
+
+/* ===== 连击提示 ===== */
+.combo-pop {
+  position:fixed; top:45%; left:50%; transform:translate(-50%,-50%) scale(0);
+  font-size:42px; font-weight:900; pointer-events:none; z-index:60; opacity:0;
+  text-shadow:0 0 20px rgba(255,200,50,.8);
+}
+.combo-pop.show {
+  animation:combo-anim 1s forwards;
+}
+@keyframes combo-anim {
+  0% { transform:translate(-50%,-50%) scale(0); opacity:0; }
+  25% { transform:translate(-50%,-50%) scale(1.4); opacity:1; }
+  100% { transform:translate(-50%,-70%) scale(1); opacity:0; }
+}
+
+/* 得分飘字 */
+.score-fly {
+  position:absolute; font-size:20px; font-weight:800; color:#ffd54f;
+  text-shadow:0 0 8px rgba(255,200,50,.6); pointer-events:none; z-index:20;
+  animation:fly-up 1s forwards;
+}
+@keyframes fly-up { 0%{opacity:1;transform:translateY(0)} 100%{opacity:0;transform:translateY(-60px)} }
+
+/* 粒子 */
+.particle {
+  position:absolute; width:6px; height:6px; border-radius:50%; pointer-events:none; z-index:15;
+  animation:particle-burst .6s forwards;
+}
+@keyframes particle-burst {
+  0% { opacity:1; transform:translate(0,0) scale(1); }
+  100% { opacity:0; transform:translate(var(--dx),var(--dy)) scale(0); }
+}
+
+/* 关卡切换动画 */
+.level-transition {
+  position:fixed; inset:0; background:#1a0533; z-index:200;
+  display:flex; align-items:center; justify-content:center;
+  font-size:40px; font-weight:900; color:#ffd54f;
+  animation:lvl-trans .8s forwards;
+}
+@keyframes lvl-trans {
+  0% { opacity:0; }
+  20% { opacity:1; }
+  80% { opacity:1; }
+  100% { opacity:0; }
+}
+</style>
+</head>
+<body>
+
+<!-- 星星背景 -->
+<div class="stars-bg" id="starsBg"></div>
+
+<!-- ========== 主菜单 ========== -->
+<div id="menu" class="screen active">
+  <h1>开心消消乐</h1>
+  <p class="subtitle">交换相邻头像 · 三个连成一线即可消除</p>
+  <div class="level-grid" id="levelGrid"></div>
+</div>
+
+<!-- ========== 游戏画面 ========== -->
+<div id="game" class="screen">
+  <div class="hud">
+    <div class="hud-item"><span class="label">关卡</span><span class="value" id="hudLevel">1</span></div>
+    <div class="hud-item"><span class="label">得分</span><span class="value" id="hudScore">0</span></div>
+    <div class="hud-item"><span class="label">步数</span><span class="value" id="hudMoves">20</span></div>
+  </div>
+  <div class="progress-wrap">
+    <div class="progress-bar"><div class="fill" id="progFill" style="width:0%"></div></div>
+    <div class="progress-target" id="progTarget">🎯 1000</div>
+  </div>
+  <div class="board-wrapper"><div class="board" id="board"></div></div>
+  <div class="game-btns">
+    <button class="btn btn-ghost" onclick="showHint()">💡 提示</button>
+    <button class="btn btn-ghost" onclick="confirmRestart()">🔄 重玩</button>
+    <button class="btn btn-ghost" onclick="backToMenu()">🏠 返回</button>
+  </div>
+</div>
+
+<!-- ========== 胜利弹窗 ========== -->
+<div class="overlay" id="winOverlay">
+  <div class="modal">
+    <h2>🎉 恭喜过关！</h2>
+    <div class="stars-big" id="winStars">★★★</div>
+    <p id="winMsg"></p>
+    <div class="btns">
+      <button class="btn btn-ghost" onclick="backToMenu()">返回菜单</button>
+      <button class="btn btn-gold" id="nextBtn" onclick="nextLevel()">下一关 ▶</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 失败弹窗 ========== -->
+<div class="overlay" id="loseOverlay">
+  <div class="modal">
+    <h2>😅 挑战失败</h2>
+    <p id="loseMsg"></p>
+    <div class="btns">
+      <button class="btn btn-ghost" onclick="backToMenu()">返回菜单</button>
+      <button class="btn btn-gold" onclick="retryLevel()">再来一次</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 确认弹窗 ========== -->
+<div class="overlay" id="confirmOverlay">
+  <div class="modal">
+    <h2 id="confirmTitle">确认重玩？</h2>
+    <p id="confirmMsg">当前进度将会丢失</p>
+    <div class="btns">
+      <button class="btn btn-ghost" id="confirmCancel">取消</button>
+      <button class="btn btn-gold" id="confirmOk">确认</button>
+    </div>
+  </div>
+</div>
+
+<div class="combo-pop" id="comboPop"></div>
+
+<script>
+// 获取当前关卡的图片集
+function getImages() { return LEVELS[levelIdx].images; }
+
+// ============ 关卡配置 ============
+// 每个关卡独立配置6张人物头像，未来新增关卡只需添加新条目
+const COLS = 8, ROWS = 8;
+
+const LEVELS = [
+  { id:1, name:'第一关', target:800,  moves:25, desc:'暖暖的初遇',
+    images:[
+      "assets/4af7aa7c860ef9dad77bc0151786f1bd.jpg",
+      "assets/567bbecfe63175d162a14548093a2fc8.jpg",
+      "assets/61599c668e52939acc7030df6a303b9a.jpg",
+      "assets/68d0270fae3b340457f1617a46ce5999.jpg",
+      "assets/784d779e9d8dcc4e9721291686ec3d1d.jpg",
+      "assets/IMG_20250702_164922(5).jpg"
+    ]
+  },
+  { id:2, name:'第二关', target:1600, moves:22, desc:'渐入佳境',
+    images:[
+      "assets/4af7aa7c860ef9dad77bc0151786f1bd.jpg",
+      "assets/567bbecfe63175d162a14548093a2fc8.jpg",
+      "assets/61599c668e52939acc7030df6a303b9a.jpg",
+      "assets/68d0270fae3b340457f1617a46ce5999.jpg",
+      "assets/784d779e9d8dcc4e9721291686ec3d1d.jpg",
+      "assets/IMG_20250702_164922(5).jpg"
+    ]
+  },
+  { id:3, name:'第三关', target:2500, moves:20, desc:'手到擒来',
+    images:[
+      "assets/4af7aa7c860ef9dad77bc0151786f1bd.jpg",
+      "assets/567bbecfe63175d162a14548093a2fc8.jpg",
+      "assets/61599c668e52939acc7030df6a303b9a.jpg",
+      "assets/68d0270fae3b340457f1617a46ce5999.jpg",
+      "assets/784d779e9d8dcc4e9721291686ec3d1d.jpg",
+      "assets/IMG_20250702_164922(5).jpg"
+    ]
+  },
+  { id:4, name:'第四关', target:4000, moves:18, desc:'高手过招',
+    images:[
+      "assets/4af7aa7c860ef9dad77bc0151786f1bd.jpg",
+      "assets/567bbecfe63175d162a14548093a2fc8.jpg",
+      "assets/61599c668e52939acc7030df6a303b9a.jpg",
+      "assets/68d0270fae3b340457f1617a46ce5999.jpg",
+      "assets/784d779e9d8dcc4e9721291686ec3d1d.jpg",
+      "assets/IMG_20250702_164922(5).jpg"
+    ]
+  },
+  { id:5, name:'第五关', target:5500, moves:18, desc:'终极挑战',
+    images:[
+      "assets/4af7aa7c860ef9dad77bc0151786f1bd.jpg",
+      "assets/567bbecfe63175d162a14548093a2fc8.jpg",
+      "assets/61599c668e52939acc7030df6a303b9a.jpg",
+      "assets/68d0270fae3b340457f1617a46ce5999.jpg",
+      "assets/784d779e9d8dcc4e9721291686ec3d1d.jpg",
+      "assets/IMG_20250702_164922(5).jpg"
+    ]
+  },
+];
+
+// ============ 状态 ============
+let grid = [];
+let selected = null;
+let score = 0, moves = 0, levelIdx = 0;
+let animating = false;
+let levelStars = [0,0,0,0,0];
+let unlocked = 1;
+let hintCells = [];
+let confirmCallback = null;
+
+// ============ 初始化星星背景 ============
+function initStars() {
+  const bg = document.getElementById('starsBg');
+  bg.innerHTML = '';
+  for (let i=0; i<60; i++) {
+    const s = document.createElement('div');
+    s.className = 'star';
+    s.style.left = Math.random()*100+'%';
+    s.style.top = Math.random()*100+'%';
+    s.style.animationDelay = Math.random()*3+'s';
+    s.style.animationDuration = (2+Math.random()*4)+'s';
+    bg.appendChild(s);
+  }
+}
+
+// ============ 初始化棋盘 ============
+function initGrid() {
+  grid = [];
+  for (let r=0; r<ROWS; r++) {
+    grid[r] = [];
+    for (let c=0; c<COLS; c++) {
+      let v;
+      do { v = randInt(getImages().length); } while (wouldMatch(r,c,v));
+      grid[r][c] = v;
+    }
+  }
+}
+
+function wouldMatch(r,c,v) {
+  if (c>=2 && grid[r][c-1]===v && grid[r][c-2]===v) return true;
+  if (r>=2 && grid[r-1][c]===v && grid[r-2][c]===v) return true;
+  return false;
+}
+
+// ============ 渲染 ============
+function render() {
+  const board = document.getElementById('board');
+  board.style.gridTemplateColumns = `repeat(${COLS}, 54px)`;
+  board.innerHTML = '';
+  for (let r=0; r<ROWS; r++) {
+    for (let c=0; c<COLS; c++) {
+      const v = grid[r][c];
+      const piece = document.createElement('div');
+      piece.className = 'piece';
+      piece.dataset.r = r;
+      piece.dataset.c = c;
+      if (selected && selected.r===r && selected.c===c) piece.classList.add('selected');
+      if (hintCells.some(h=>h.r===r&&h.c===c)) piece.classList.add('hint-anim');
+      const img = document.createElement('img');
+      img.src = getImages()[v];
+      img.draggable = false;
+      piece.appendChild(img);
+      piece.addEventListener('click', ()=>onCellClick(r,c));
+      board.appendChild(piece);
+    }
+  }
+  updateHUD();
+}
+
+function getPiece(r,c) {
+  return document.querySelector(`.piece[data-r="${r}"][data-c="${c}"]`);
+}
+
+function updateHUD() {
+  const lv = LEVELS[levelIdx];
+  document.getElementById('hudLevel').textContent = lv.id;
+  document.getElementById('hudScore').textContent = score;
+  document.getElementById('hudMoves').textContent = moves;
+  const pct = Math.min(100, (score/lv.target)*100);
+  document.getElementById('progFill').style.width = pct+'%';
+  document.getElementById('progTarget').textContent = '🎯 '+lv.target;
+  // 更新目标线位置（总是100%因为就是target）
+}
+
+// ============ 点击处理 ============
+function onCellClick(r,c) {
+  if (animating) return;
+  clearHint();
+
+  if (!selected) {
+    selected = {r,c};
+    render();
+    return;
+  }
+
+  const sr=selected.r, sc=selected.c;
+  selected = null;
+
+  if (!isAdjacent(sr,sc,r,c)) {
+    selected = {r,c};
+    render();
+    return;
+  }
+
+  trySwap(sr,sc,r,c);
+}
+
+function isAdjacent(r1,c1,r2,c2) {
+  return Math.abs(r1-r2)+Math.abs(c1-c2)===1;
+}
+
+// ============ 交换逻辑 ============
+async function trySwap(r1,c1,r2,c2) {
+  animating = true;
+  swap(r1,c1,r2,c2);
+  render();
+
+  const matches = findMatches();
+  if (matches.length===0) {
+    await sleep(180);
+    swap(r1,c1,r2,c2);
+    render();
+    animating = false;
+    return;
+  }
+
+  moves--;
+  updateHUD();
+
+  let combo = 0;
+  let curMatches = matches;
+  while (curMatches.length>0) {
+    combo++;
+    const pts = calcPoints(curMatches, combo);
+    score += pts;
+
+    if (combo>=2) showCombo(combo);
+    await animateMatch(curMatches);
+
+    removeMatches(curMatches);
+    await sleep(60);
+    await dropDown();
+    await sleep(60);
+    fillTop();
+    render();
+    await sleep(120);
+
+    curMatches = findMatches();
+  }
+
+  // 检查胜负
+  const lv = LEVELS[levelIdx];
+  if (score >= lv.target) {
+    await sleep(300);
+    onWin();
+  } else if (moves <= 0) {
+    await sleep(300);
+    onLose();
+  } else if (!hasValidMove()) {
+    await showComboText('洗牌中…');
+    await shuffleBoard();
+  }
+
+  animating = false;
+}
+
+function swap(r1,c1,r2,c2) {
+  const t = grid[r1][c1];
+  grid[r1][c1] = grid[r2][c2];
+  grid[r2][c2] = t;
+}
+
+// ============ 匹配检测 ============
+function findMatches() {
+  const m = new Set();
+  // 横
+  for (let r=0; r<ROWS; r++) {
+    for (let c=0; c<COLS-2; c++) {
+      const v=grid[r][c]; if (v===-1) continue;
+      if (grid[r][c+1]===v && grid[r][c+2]===v) {
+        let end=c+2;
+        while (end+1<COLS && grid[r][end+1]===v) end++;
+        for (let i=c; i<=end; i++) m.add(r*COLS+i);
+      }
+    }
+  }
+  // 纵
+  for (let c=0; c<COLS; c++) {
+    for (let r=0; r<ROWS-2; r++) {
+      const v=grid[r][c]; if (v===-1) continue;
+      if (grid[r+1][c]===v && grid[r+2][c]===v) {
+        let end=r+2;
+        while (end+1<ROWS && grid[end+1][c]===v) end++;
+        for (let i=r; i<=end; i++) m.add(i*COLS+c);
+      }
+    }
+  }
+  return [...m].map(idx=>({r:Math.floor(idx/COLS), c:idx%COLS}));
+}
+
+// ============ 计分 ============
+function calcPoints(matches, combo) {
+  let base = matches.length * 30;
+  // 检测4连5连
+  const groups = groupMatches(matches);
+  for (const g of groups) {
+    if (g.len===4) base += 60;
+    if (g.len>=5) base += 200;
+  }
+  return base * combo;
+}
+
+function groupMatches(matches) {
+  const groups = [];
+  for (let r=0; r<ROWS; r++) {
+    const row = matches.filter(m=>m.r===r).map(m=>m.c).sort((a,b)=>a-b);
+    let i=0;
+    while (i<row.length) {
+      let j=i;
+      while (j+1<row.length && row[j+1]===row[j]+1) j++;
+      if (j>i) groups.push({len:j-i+1});
+      i=j+1;
+    }
+  }
+  for (let c=0; c<COLS; c++) {
+    const col = matches.filter(m=>m.c===c).map(m=>m.r).sort((a,b)=>a-b);
+    let i=0;
+    while (i<col.length) {
+      let j=i;
+      while (j+1<col.length && col[j+1]===col[j]+1) j++;
+      if (j>i) groups.push({len:j-i+1});
+      i=j+1;
+    }
+  }
+  return groups;
+}
+
+// ============ 动画效果 ============
+async function animateMatch(matches) {
+  for (const m of matches) {
+    const p = getPiece(m.r, m.c);
+    if (p) p.classList.add('pop');
+  }
+  showScoreFly(matches);
+  spawnParticles(matches);
+  await sleep(380);
+}
+
+function showScoreFly(matches) {
+  const wrapper = document.querySelector('.board-wrapper');
+  const avgR = matches.reduce((s,m)=>s+m.r,0)/matches.length;
+  const avgC = matches.reduce((s,m)=>s+m.c,0)/matches.length;
+  const fly = document.createElement('div');
+  fly.className = 'score-fly';
+  fly.textContent = '+'+matches.length*30;
+  fly.style.left = (avgC*58+6)+'px';
+  fly.style.top = (avgR*58+6)+'px';
+  wrapper.appendChild(fly);
+  setTimeout(()=>fly.remove(), 1000);
+}
+
+function spawnParticles(matches) {
+  const wrapper = document.querySelector('.board-wrapper');
+  const colors = ['#ffd54f','#ff8a65','#81d4fa','#a5d6a7','#f48fb1','#ce93d8'];
+  for (const m of matches) {
+    for (let i=0; i<4; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      p.style.background = colors[grid[m.r][m.c]] || colors[0];
+      p.style.left = (m.c*58+27)+'px';
+      p.style.top = (m.r*58+27)+'px';
+      p.style.setProperty('--dx', (Math.random()-0.5)*60+'px');
+      p.style.setProperty('--dy', (Math.random()-0.5)*60+'px');
+      wrapper.appendChild(p);
+      setTimeout(()=>p.remove(), 600);
+    }
+  }
+}
+
+function showCombo(n) {
+  const el = document.getElementById('comboPop');
+  el.textContent = n+'连击！';
+  el.className = 'combo-pop';
+  void el.offsetWidth;
+  el.classList.add('show');
+}
+
+function showComboText(txt) {
+  const el = document.getElementById('comboPop');
+  el.textContent = txt;
+  el.className = 'combo-pop';
+  void el.offsetWidth;
+  el.classList.add('show');
+}
+
+// ============ 下落 & 填充 ============
+function removeMatches(matches) {
+  for (const m of matches) grid[m.r][m.c] = -1;
+}
+
+async function dropDown() {
+  for (let c=0; c<COLS; c++) {
+    let w = ROWS-1;
+    for (let r=ROWS-1; r>=0; r--) {
+      if (grid[r][c]!==-1) {
+        grid[w][c] = grid[r][c];
+        if (w!==r) grid[r][c] = -1;
+        w--;
+      }
+    }
+  }
+}
+
+function fillTop() {
+  for (let c=0; c<COLS; c++)
+    for (let r=0; r<ROWS; r++)
+      if (grid[r][c]===-1)
+        grid[r][c] = randInt(getImages().length);
+}
+
+// ============ 有效移动 & 提示 ============
+function hasValidMove() {
+  for (let r=0; r<ROWS; r++) {
+    for (let c=0; c<COLS; c++) {
+      if (c+1<COLS) { swap(r,c,r,c+1); if (findMatches().length>0) { swap(r,c,r,c+1); return true; } swap(r,c,r,c+1); }
+      if (r+1<ROWS) { swap(r,c,r+1,c); if (findMatches().length>0) { swap(r,c,r+1,c); return true; } swap(r,c,r+1,c); }
+    }
+  }
+  return false;
+}
+
+function findHint() {
+  for (let r=0; r<ROWS; r++) {
+    for (let c=0; c<COLS; c++) {
+      if (c+1<COLS) { swap(r,c,r,c+1); if (findMatches().length>0) { swap(r,c,r,c+1); return [{r,c},{r,c:c+1}]; } swap(r,c,r,c+1); }
+      if (r+1<ROWS) { swap(r,c,r+1,c); if (findMatches().length>0) { swap(r,c,r+1,c); return [{r,c},{r:r+1,c}]; } swap(r,c,r+1,c); }
+    }
+  }
+  return null;
+}
+
+function showHint() {
+  if (animating) return;
+  clearHint();
+  const h = findHint();
+  if (h) { hintCells = h; render(); setTimeout(clearHint, 2000); }
+}
+
+function clearHint() { hintCells = []; }
+
+// ============ 洗牌 ============
+async function shuffleBoard() {
+  await sleep(400);
+  do { initGrid(); } while (!hasValidMove() || findMatches().length>0);
+  render();
+}
+
+// ============ 胜负 ============
+function onWin() {
+  const lv = LEVELS[levelIdx];
+  const ratio = score / lv.target;
+  let stars = 1;
+  if (ratio >= 2.0) stars = 3;
+  else if (ratio >= 1.3) stars = 2;
+
+  levelStars[levelIdx] = Math.max(levelStars[levelIdx], stars);
+  if (levelIdx+1 < LEVELS.length) unlocked = Math.max(unlocked, levelIdx+2);
+
+  document.getElementById('winStars').textContent = '★'.repeat(stars)+'☆'.repeat(3-stars);
+  document.getElementById('winMsg').textContent = '得分: '+score+' / 目标 '+lv.target;
+  document.getElementById('nextBtn').style.display = levelIdx+1 < LEVELS.length ? '' : 'none';
+  document.getElementById('winOverlay').classList.add('active');
+  updateMenuCards();
+}
+
+function onLose() {
+  const lv = LEVELS[levelIdx];
+  document.getElementById('loseMsg').textContent = '得分 '+score+' / 目标 '+lv.target+'，还差一点！';
+  document.getElementById('loseOverlay').classList.add('active');
+}
+
+// ============ 关卡流程 ============
+function startLevel(id) {
+  levelIdx = id-1;
+  const lv = LEVELS[levelIdx];
+  score = 0; moves = lv.moves; selected = null; animating = false; hintCells = [];
+
+  do { initGrid(); } while (!hasValidMove());
+
+  showScreen('game');
+  render();
+}
+
+function nextLevel() {
+  closeOverlay('winOverlay');
+  if (levelIdx+1 < LEVELS.length) startLevel(levelIdx+2);
+}
+
+function retryLevel() {
+  closeOverlay('loseOverlay');
+  startLevel(levelIdx+1);
+}
+
+function backToMenu() {
+  closeOverlay('winOverlay');
+  closeOverlay('loseOverlay');
+  closeOverlay('confirmOverlay');
+  showScreen('menu');
+}
+
+function confirmRestart() {
+  if (animating) return;
+  document.getElementById('confirmTitle').textContent = '确认重玩？';
+  document.getElementById('confirmMsg').textContent = '当前进度将会丢失';
+  confirmCallback = ()=>{
+    closeOverlay('confirmOverlay');
+    startLevel(levelIdx+1);
+  };
+  document.getElementById('confirmOverlay').classList.add('active');
+}
+
+document.getElementById('confirmCancel').addEventListener('click', ()=>{
+  closeOverlay('confirmOverlay');
+  confirmCallback = null;
+});
+document.getElementById('confirmOk').addEventListener('click', ()=>{
+  if (confirmCallback) confirmCallback();
+  confirmCallback = null;
+});
+
+// ============ UI工具 ============
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function closeOverlay(id) { document.getElementById(id).classList.remove('active'); }
+
+function updateMenuCards() {
+  const grid = document.getElementById('levelGrid');
+  grid.innerHTML = '';
+  for (let i=0; i<LEVELS.length; i++) {
+    const lv = LEVELS[i];
+    const card = document.createElement('div');
+    card.className = 'level-card';
+    if (i+1 > unlocked) card.classList.add('locked');
+    card.onclick = ()=>startLevel(i+1);
+    card.innerHTML = `
+      <div class="num">${lv.id}</div>
+      <div class="stars">${starText(levelStars[i])}</div>
+      <div class="info">${lv.desc}<br>目标 ${lv.target} 分 · ${lv.moves}步</div>
+    `;
+    grid.appendChild(card);
+  }
+}
+
+function starText(n) { return '★'.repeat(n)+'☆'.repeat(3-n); }
+function randInt(n) { return Math.floor(Math.random()*n); }
+function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
+
+// ============ 启动 ============
+initStars();
+updateMenuCards();
+</script>
+</body>
+</html>
