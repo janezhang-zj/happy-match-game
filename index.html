@@ -210,6 +210,42 @@ body::before {
   100% { opacity:0; transform:translate(var(--dx),var(--dy)) scale(0); }
 }
 
+/* ===== 角色选择画面 ===== */
+#select { gap:28px; }
+#select h1 { font-size:36px; color:#fff; text-align:center; text-shadow:0 0 20px rgba(255,200,80,.4); }
+.char-grid { display:flex; gap:30px; margin-top:10px; }
+.char-card {
+  width:180px; padding:30px 20px; border-radius:24px; cursor:pointer;
+  background:linear-gradient(160deg, rgba(255,255,255,.1), rgba(255,255,255,.04));
+  border:2px solid rgba(255,255,255,.2);
+  text-align:center; transition:transform .25s, box-shadow .25s, border-color .25s;
+  backdrop-filter:blur(8px);
+}
+.char-card:hover { transform:translateY(-8px) scale(1.05); border-color:rgba(255,200,80,.7); box-shadow:0 16px 40px rgba(0,0,0,.4), 0 0 30px rgba(255,180,60,.25); }
+.char-card .avatar {
+  width:80px; height:80px; border-radius:50%; margin:0 auto 16px;
+  background:linear-gradient(135deg, #ffd54f, #ff8a65, #f48fb1);
+  display:flex; align-items:center; justify-content:center; font-size:44px;
+}
+.char-card .name { font-size:22px; font-weight:700; color:#fff; letter-spacing:2px; }
+.char-card .tag { font-size:12px; color:rgba(255,255,255,.5); margin-top:6px; }
+
+/* 胜利庆祝增强 */
+#winTitle { font-size:32px; }
+.win-badge {
+  display:inline-block; background:linear-gradient(135deg, #ffd54f, #ff8a65);
+  color:#4e2b00; padding:4px 16px; border-radius:20px; font-size:18px; font-weight:700;
+  margin:8px 0; letter-spacing:2px;
+}
+.confetti-piece {
+  position:fixed; width:12px; height:12px; z-index:150; pointer-events:none;
+  animation:confetti-fall 2s forwards;
+}
+@keyframes confetti-fall {
+  0% { opacity:1; transform:translateY(-100vh) rotate(0deg); }
+  100% { opacity:0; transform:translateY(105vh) rotate(720deg); }
+}
+
 /* 关卡切换动画 */
 .level-transition {
   position:fixed; inset:0; background:#1a0533; z-index:200;
@@ -230,11 +266,29 @@ body::before {
 <!-- 星星背景 -->
 <div class="stars-bg" id="starsBg"></div>
 
+<!-- ========== 角色选择 ========== -->
+<div id="select" class="screen active">
+  <h1>选择你的角色</h1>
+  <div class="char-grid">
+    <div class="char-card" onclick="selectCharacter('小芒果')">
+      <div class="avatar">🥭</div>
+      <div class="name">小芒果</div>
+      <div class="tag">点击选择</div>
+    </div>
+    <div class="char-card" onclick="selectCharacter('小伸伸')">
+      <div class="avatar">🌟</div>
+      <div class="name">小伸伸</div>
+      <div class="tag">点击选择</div>
+    </div>
+  </div>
+</div>
+
 <!-- ========== 主菜单 ========== -->
-<div id="menu" class="screen active">
+<div id="menu" class="screen">
   <h1>开心消消乐</h1>
   <p class="subtitle">交换相邻头像 · 三个连成一线即可消除</p>
   <div class="level-grid" id="levelGrid"></div>
+  <button class="btn btn-ghost" style="margin-top:10px" onclick="backToSelect()">👤 切换角色</button>
 </div>
 
 <!-- ========== 游戏画面 ========== -->
@@ -259,7 +313,8 @@ body::before {
 <!-- ========== 胜利弹窗 ========== -->
 <div class="overlay" id="winOverlay">
   <div class="modal">
-    <h2>🎉 恭喜过关！</h2>
+    <h2>🎉</h2>
+    <div class="win-badge" id="winBadge">恭喜，XXX通关成功！</div>
     <div class="stars-big" id="winStars">★★★</div>
     <p id="winMsg"></p>
     <div class="btns">
@@ -357,6 +412,7 @@ const LEVELS = [
 ];
 
 // ============ 状态 ============
+let playerName = '';
 let grid = [];
 let selected = null;
 let score = 0, moves = 0, levelIdx = 0;
@@ -724,10 +780,12 @@ function onWin() {
   levelStars[levelIdx] = Math.max(levelStars[levelIdx], stars);
   if (levelIdx+1 < LEVELS.length) unlocked = Math.max(unlocked, levelIdx+2);
 
+  document.getElementById('winBadge').textContent = '恭喜，'+playerName+'通关成功！';
   document.getElementById('winStars').textContent = '★'.repeat(stars)+'☆'.repeat(3-stars);
   document.getElementById('winMsg').textContent = '得分: '+score+' / 目标 '+lv.target;
   document.getElementById('nextBtn').style.display = levelIdx+1 < LEVELS.length ? '' : 'none';
   document.getElementById('winOverlay').classList.add('active');
+  spawnConfetti();
   updateMenuCards();
 }
 
@@ -735,6 +793,32 @@ function onLose() {
   const lv = LEVELS[levelIdx];
   document.getElementById('loseMsg').textContent = '得分 '+score+' / 目标 '+lv.target+'，还差一点！';
   document.getElementById('loseOverlay').classList.add('active');
+}
+
+// ============ 角色选择 ============
+function selectCharacter(name) {
+  playerName = name;
+  showScreen('menu');
+}
+
+function backToSelect() {
+  showScreen('select');
+}
+
+function spawnConfetti() {
+  const colors = ['#ffd54f','#ff8a65','#81d4fa','#a5d6a7','#f48fb1','#ce93d8','#fff176','#ef5350'];
+  for (let i=0; i<60; i++) {
+    const el = document.createElement('div');
+    el.className = 'confetti-piece';
+    el.style.left = Math.random()*100+'%';
+    el.style.top = -(Math.random()*20)+'px';
+    el.style.background = colors[Math.floor(Math.random()*colors.length)];
+    el.style.animationDelay = Math.random()*1.5+'s';
+    el.style.animationDuration = (1.5+Math.random()*2)+'s';
+    el.style.borderRadius = Math.random()>.5 ? '50%' : '2px';
+    document.body.appendChild(el);
+    setTimeout(()=>el.remove(), 3500);
+  }
 }
 
 // ============ 关卡流程 ============
@@ -763,7 +847,7 @@ function backToMenu() {
   closeOverlay('winOverlay');
   closeOverlay('loseOverlay');
   closeOverlay('confirmOverlay');
-  showScreen('menu');
+  showScreen('select');
 }
 
 function confirmRestart() {
