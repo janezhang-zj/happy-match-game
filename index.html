@@ -25,6 +25,17 @@ body::before {
              radial-gradient(ellipse at 50% 50%, rgba(255,150,200,.04) 0%, transparent 70%);
 }
 
+/* 音乐按钮 */
+.music-btn {
+  position:fixed; top:12px; right:12px; z-index:50;
+  width:40px; height:40px; border-radius:50%; border:2px solid rgba(255,255,255,.25);
+  background:rgba(0,0,0,.3); backdrop-filter:blur(6px);
+  font-size:20px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  transition:transform .2s, border-color .2s;
+}
+.music-btn:hover { transform:scale(1.1); border-color:rgba(255,200,80,.6); }
+.music-btn.muted { opacity:.5; }
+
 /* 飘落星星背景 */
 .stars-bg { position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden; }
 .stars-bg .star {
@@ -253,21 +264,6 @@ body::before {
   100% { opacity:0; transform:translateY(105vh) rotate(720deg); }
 }
 
-/* ===== 背景音乐按钮 ===== */
-.music-btn {
-  position:fixed; bottom:16px; right:16px; z-index:50;
-  width:44px; height:44px; border-radius:50%; border:2px solid rgba(255,255,255,.25);
-  background:rgba(0,0,0,.4); backdrop-filter:blur(6px);
-  font-size:22px; cursor:pointer; transition:transform .15s, box-shadow .15s;
-  display:flex; align-items:center; justify-content:center;
-}
-.music-btn:hover { transform:scale(1.1); }
-.music-btn.off { opacity:.5; }
-.music-btn.off::after {
-  content:''; position:absolute; width:2px; height:26px; background:#fff;
-  transform:rotate(-45deg); border-radius:1px;
-}
-
 /* 关卡切换动画 */
 .level-transition {
   position:fixed; inset:0; background:#1a0533; z-index:200;
@@ -284,6 +280,12 @@ body::before {
 </style>
 </head>
 <body>
+
+<!-- 背景音乐 -->
+<audio id="bgMusic" src="assets/bg-music.mp4" loop preload="auto"></audio>
+
+<!-- 音乐按钮 -->
+<button class="music-btn" id="musicBtn" onclick="toggleMusic()" title="音乐开关">🎵</button>
 
 <!-- 星星背景 -->
 <div class="stars-bg" id="starsBg"></div>
@@ -372,11 +374,39 @@ body::before {
 
 <div class="combo-pop" id="comboPop"></div>
 
-<!-- 背景音乐 -->
-<audio id="bgm" loop preload="auto" src="assets/bgm.mp3"></audio>
-<button class="music-btn" id="musicBtn" onclick="toggleMusic()" title="背景音乐">🎵</button>
-
 <script>
+// ============ 背景音乐 ============
+let musicPlaying = false;
+const bgMusic = document.getElementById('bgMusic');
+
+function toggleMusic() {
+  if (musicPlaying) {
+    bgMusic.pause();
+    musicPlaying = false;
+    document.getElementById('musicBtn').textContent = '🔇';
+    document.getElementById('musicBtn').classList.add('muted');
+  } else {
+    bgMusic.play().then(() => {
+      musicPlaying = true;
+      document.getElementById('musicBtn').textContent = '🎵';
+      document.getElementById('musicBtn').classList.remove('muted');
+    }).catch(() => {});  // Autoplay blocked, will retry on user interaction
+  }
+}
+
+// Try autoplay on first user interaction
+function tryAutoPlay() {
+  if (!musicPlaying) {
+    bgMusic.play().then(() => {
+      musicPlaying = true;
+      document.getElementById('musicBtn').textContent = '🎵';
+      document.getElementById('musicBtn').classList.remove('muted');
+    }).catch(() => {});
+  }
+}
+document.addEventListener('click', tryAutoPlay, { once: true });
+document.addEventListener('touchstart', tryAutoPlay, { once: true });
+
 // 获取当前关卡的图片集
 function getImages() { return LEVELS[levelIdx].images; }
 
@@ -927,34 +957,6 @@ function updateMenuCards() {
 function starText(n) { return '★'.repeat(n)+'☆'.repeat(3-n); }
 function randInt(n) { return Math.floor(Math.random()*n); }
 function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
-
-// ============ 背景音乐 ============
-let musicOn = true;
-const bgm = document.getElementById('bgm');
-const musicBtn = document.getElementById('musicBtn');
-
-function toggleMusic() {
-  musicOn = !musicOn;
-  if (musicOn) {
-    bgm.play().catch(()=>{});
-    musicBtn.classList.remove('off');
-    musicBtn.textContent = '🎵';
-  } else {
-    bgm.pause();
-    musicBtn.classList.add('off');
-    musicBtn.textContent = '🔇';
-  }
-}
-
-// Auto-start music on first user tap/click (required by mobile browsers)
-let musicStarted = false;
-function tryStartMusic() {
-  if (!musicStarted && musicOn) {
-    bgm.play().then(()=>{ musicStarted = true; }).catch(()=>{});
-  }
-}
-document.addEventListener('click', tryStartMusic, {once: false});
-document.addEventListener('touchstart', tryStartMusic, {once: false});
 
 // ============ 自适应缩放 ============
 let currentCellSize = 54;
